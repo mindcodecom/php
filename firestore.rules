@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - Full name
+    //   - email: string (required) - Email address
+    //   - role: string (required, enum: student, teacher, admin) - User role
+    //   - photoURL: string (optional) - Profile picture URL
+    //   - createdAt: timestamp (required) - Account creation timestamp
+    //
+    // Collection: modules
+    // Document ID: {moduleId}
+    // Fields:
+    //   - id: string (required)
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - icon: string (optional)
+    //   - color: string (optional)
+    //   - order: int (required)
+    //
+    // Collection: modules/{moduleId}/lessons
+    // Document ID: {lessonId}
+    // Fields:
+    //   - id: string (required)
+    //   - moduleId: string (required)
+    //   - title: string (required)
+    //   - content: string (optional)
+    //   - videoUrl: string (optional)
+    //   - practicalTasks: string (optional)
+    //   - trainingActivities: list (optional)
+    //   - order: int (required)
+    //
+    // Collection: achievements
+    // Document ID: {achievementId}
+    // Fields:
+    //   - uid: string (required)
+    //   - lessonId: string (required)
+    //   - completedAt: timestamp (required)
+    //   - score: int (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "mind.code.com@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' || isAdmin());
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['student', 'teacher', 'admin'];
+    }
+
+    function isValidModule(data) {
+      return data.keys().hasAll(['id', 'title', 'order']) &&
+             data.id is string && data.title is string && data.order is int;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['id', 'moduleId', 'title', 'order']) &&
+             data.id is string && data.moduleId is string && data.title is string && data.order is int;
+    }
+
+    function isValidAchievement(data) {
+      return data.keys().hasAll(['uid', 'lessonId', 'completedAt']) &&
+             data.uid == request.auth.uid && data.lessonId is string && data.completedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      // Users can read their own profile. Admins and teachers can read all profiles (for management).
+      allow read: if isOwner(uid) || isTeacher();
+      // Users can create their own profile as 'student' or 'teacher' (if they are in the allowed list, handled by app logic).
+      // Admins can create any profile.
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(uid) && request.resource.data.role != 'admin' || isAdmin());
+      // Users can update their own profile (but not their role). Admins can update anything.
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(uid) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /allowed_emails/{emailId} {
+      // Anyone authenticated can read (to check if they are allowed).
+      // In a real app, we might restrict this more, but for this educational app it's fine.
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /modules/{moduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+      
+      match /lessons/{lessonId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /achievements/{achievementId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isTeacher());
+      allow create: if isAuthenticated() && isValidAchievement(request.resource.data);
+      allow update: if isAuthenticated() && isValidAchievement(request.resource.data) && resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

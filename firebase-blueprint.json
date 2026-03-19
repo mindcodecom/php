@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile for students and teachers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email address" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"], "description": "User role" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Module": {
+      "title": "Module",
+      "description": "Educational module content.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Module ID" },
+        "title": { "type": "string", "description": "Module title" },
+        "description": { "type": "string", "description": "Module description" },
+        "icon": { "type": "string", "description": "Lucide icon name" },
+        "color": { "type": "string", "description": "Tailwind color class" },
+        "order": { "type": "integer", "description": "Display order" }
+      },
+      "required": ["id", "title", "order"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Lesson content within a module.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Lesson ID" },
+        "moduleId": { "type": "string", "description": "Parent module ID" },
+        "title": { "type": "string", "description": "Lesson title" },
+        "content": { "type": "string", "description": "Lesson markdown content" },
+        "videoUrl": { "type": "string", "description": "Video tutorial URL" },
+        "practicalTasks": { "type": "string", "description": "Practical tasks description" },
+        "trainingActivities": { "type": "array", "items": { "type": "string" }, "description": "List of activities" },
+        "order": { "type": "integer", "description": "Display order within module" }
+      },
+      "required": ["id", "moduleId", "title", "order"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "User progress and achievements.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "lessonId": { "type": "string", "description": "Completed lesson ID" },
+        "completedAt": { "type": "string", "format": "date-time", "description": "Completion timestamp" },
+        "score": { "type": "integer", "description": "Score achieved" }
+      },
+      "required": ["uid", "lessonId", "completedAt"]
+    },
+    "AllowedEmail": {
+      "title": "AllowedEmail",
+      "description": "List of emails allowed to register.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "Email address" },
+        "name": { "type": "string", "description": "Full name" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"], "description": "Assigned role" }
+      },
+      "required": ["email", "name", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/allowed_emails/{emailId}": {
+      "schema": "AllowedEmail",
+      "description": "Allowed emails for registration"
+    },
+    "/modules/{moduleId}": {
+      "schema": "Module",
+      "description": "Educational modules"
+    },
+    "/modules/{moduleId}/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Lessons within modules"
+    },
+    "/achievements/{achievementId}": {
+      "schema": "Achievement",
+      "description": "User achievements"
+    }
+  }
+}

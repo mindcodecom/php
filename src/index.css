@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0effe;
+  --color-brand-200: #bae0fd;
+  --color-brand-300: #7cc8fb;
+  --color-brand-400: #36acf7;
+  --color-brand-500: #0c91e9;
+  --color-brand-600: #0273c7;
+  --color-brand-700: #035ba1;
+  --color-brand-800: #074d85;
+  --color-brand-900: #0c416e;
+  --color-brand-950: #082949;
+
+  --animate-blob: blob 7s infinite;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+
+@layer base {
+  body {
+    @apply bg-[#F8FAFC] text-slate-900 antialiased overflow-x-hidden;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)];
+  }
+  
+  .btn-primary {
+    @apply relative overflow-hidden px-6 py-3 bg-brand-600 text-white rounded-2xl font-bold transition-all duration-300 hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-500/30 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold transition-all duration-300 hover:border-brand-200 hover:text-brand-600 hover:bg-brand-50 active:scale-95;
+  }
+
+  .nav-item-active {
+    @apply bg-brand-600 text-white shadow-lg shadow-brand-500/30;
+  }
+
+  .nav-item-inactive {
+    @apply text-slate-500 hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .heading-xl {
+    @apply text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.1];
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-indigo-600;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
