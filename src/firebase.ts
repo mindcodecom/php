@@ -3,17 +3,17 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, Timestamp, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase
+// تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
-// Auth functions
+// وظائف المصادقة
 export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const logout = () => signOut(auth);
 
-// Firestore test connection
+// اختبار اتصال Firestore
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -25,7 +25,7 @@ async function testConnection() {
 }
 testConnection();
 
-// Error handling
+// معالجة الأخطاء
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -77,7 +77,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Business logic helpers
+// مساعدو منطق الأعمال
 export const checkIfEmailAllowed = async (email: string) => {
   const path = 'allowed_emails';
   try {
@@ -138,7 +138,7 @@ export const recordProgress = async (uid: string, type: 'lesson' | 'module' | 'a
       timestamp: Timestamp.now()
     });
     
-    // Update user's last active
+    // تحديث آخر ظهور للمستخدم
     await setDoc(doc(db, 'users', uid), { 
       lastActive: Timestamp.now() 
     }, { merge: true });
@@ -179,7 +179,7 @@ export const syncAllowedUsersFromSheet = async (sheetUrl: string) => {
   try {
     const response = await fetch(sheetUrl);
     const text = await response.text();
-    const rows = text.split('\n').slice(1); // Skip header
+    const rows = text.split('\n').slice(1); // تخطي الصف الأول (العناوين)
     let count = 0;
     
     for (const row of rows) {

@@ -97,8 +97,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               }}
             />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">منصة حاسوبي</h1>
-          <p className="text-slate-500 font-medium">مرحباً بك في رحلة تعلم البرمجة والذكاء الاصطناعي</p>
+          <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">تسجيل الدخول</h1>
+          <p className="text-slate-500 font-medium">عبر الإيميل الرسمي لوزارة التربية والتعليم</p>
         </div>
 
         {error && (
@@ -162,7 +162,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         <div className="mt-12 pt-8 border-t border-slate-100 text-center">
           <p className="text-[11px] text-slate-400 font-medium uppercase tracking-widest">
-            جميع الحقوق محفوظة © 2026 منصة حاسوبي التعليمية
+            جميع الحقوق محفوظة © 2026 المنصة الإبداعية للتعلم الذكي
           </p>
         </div>
       </motion.div>

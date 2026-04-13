@@ -19,6 +19,24 @@
 
   --animate-blob: blob 7s infinite;
   --animate-float: float 6s ease-in-out infinite;
+  --animate-scanline: scanline 8s linear infinite;
+  --animate-digital-pulse: digital-pulse 4s ease-in-out infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes digital-pulse {
+  0%, 100% { opacity: 0.05; }
+  50% { opacity: 0.15; }
+}
+
+@keyframes float-dashboard {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(3px, -3px); }
+  66% { transform: translate(-3px, 3px); }
 }
 
 @keyframes blob {
@@ -68,6 +86,24 @@
 
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-indigo-600;
+  }
+
+  /* Animated Mode Specifics */
+  .animated-mode-bg {
+    @apply animate-[float-dashboard_20s_ease-in-out_infinite];
+  }
+
+  /* Interactive Mode Specifics */
+  .interactive-card-hover {
+    @apply hover:shadow-[0_0_15px_rgba(12,145,233,0.3)] hover:border-brand-500/50 transition-all duration-500;
+  }
+
+  .scanline-overlay {
+    @apply pointer-events-none fixed inset-0 z-50 opacity-[0.02] bg-gradient-to-b from-transparent via-slate-400 to-transparent h-[1px] w-full animate-scanline;
+  }
+
+  .grid-overlay {
+    @apply pointer-events-none fixed inset-0 z-40 opacity-[0.015] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:60px_60px];
   }
 }
 

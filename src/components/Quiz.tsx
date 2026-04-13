@@ -48,6 +48,14 @@ export const Quiz: React.FC<QuizProps> = ({ questions, title, onComplete, onClos
     const newUserAnswers = [...userAnswers];
     newUserAnswers[currentQuestionIndex] = index;
     setUserAnswers(newUserAnswers);
+    
+    // Auto-advance after a short delay for better flow
+    if (currentQuestionIndex < questions.length - 1) {
+      setTimeout(() => {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setSelectedOption(newUserAnswers[currentQuestionIndex + 1]);
+      }, 600);
+    }
   };
 
   const handleFinishQuiz = () => {
@@ -218,8 +226,11 @@ export const Quiz: React.FC<QuizProps> = ({ questions, title, onComplete, onClos
           {currentQuestion.options.map((option, index) => {
             const isSelected = selectedOption === index;
             return (
-              <button
+              <motion.button
                 key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
                 onClick={() => handleOptionSelect(index)}
                 className={`w-full p-6 rounded-[1.5rem] border-2 text-right font-bold transition-all flex items-center justify-between group ${
                   isSelected 
@@ -231,9 +242,9 @@ export const Quiz: React.FC<QuizProps> = ({ questions, title, onComplete, onClos
                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                   isSelected ? 'border-brand-500 bg-brand-500' : 'border-slate-200 group-hover:border-brand-300'
                 }`}>
-                  {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                  {isSelected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-2 h-2 bg-white rounded-full" />}
                 </div>
-              </button>
+              </motion.button>
             );
           })}
         </div>

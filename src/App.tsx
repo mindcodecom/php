@@ -12,6 +12,7 @@ import {
   BookMarked, 
   Trophy, 
   Settings,
+  User,
   ChevronRight,
   Sparkles,
   PlayCircle,
@@ -30,14 +31,14 @@ import {
   Download,
   BarChart3,
   ClipboardCheck,
-  Award
+  Award,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { 
   MODULES, 
   LESSONS, 
-  CURRICULUM_FINAL_ASSESSMENT, 
   DIAGNOSTIC_QUESTIONS, 
   FINAL_QUESTIONS 
 } from './constants';
@@ -46,18 +47,82 @@ import Chat from './components/Chat';
 import Login from './components/Login';
 import { Lesson, UserProgress } from './types';
 import { auth, logout, syncAllowedUsersFromSheet, getUserProfile, db, recordProgress, getAllUsersProgress } from './firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1CzOX9M3BprtyY2frPIrUmotaZcSOWxj94LkmUyJAa5s/export?format=csv";
 
+const FALLBACK_AVATAR = "https://api.dicebear.com/7.x/bottts/png?seed=Hussein";
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [selectedResearchMode, setSelectedResearchMode] = useState<string | null>(null);
+  const [showResearcherModal, setShowResearcherModal] = useState(false);
+  const [showSupervisorsModal, setShowSupervisorsModal] = useState(false);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [husseinMood, setHusseinMood] = useState<'neutral' | 'thinking' | 'happy' | 'watching'>('neutral');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isHusseinMoving, setIsHusseinMoving] = useState(false);
+
+  const handleHusseinClick = () => {
+    if (isHusseinMoving) return;
+    setIsHusseinMoving(true);
+    setHusseinMood('happy');
+    setTimeout(() => {
+      setIsHusseinMoving(false);
+      setHusseinMood('neutral');
+    }, 2000);
+  };
+
+  const getHusseinAvatar = (mood: typeof husseinMood, mode: string | null) => {
+    const isInteractive = mode?.startsWith('interactive');
+    
+    if (isInteractive) {
+      // Interactive Mode: Robot/Tech Look (Bottts)
+      const base = "https://api.dicebear.com/7.x/bottts/png?seed=HusseinTech&backgroundColor=b6e3f4&scale=100";
+      const variants = {
+        neutral: "&eyes=variant01&mouth=variant01",
+        thinking: "&eyes=variant05&mouth=variant05",
+        happy: "&eyes=variant06&mouth=variant01",
+        watching: "&eyes=variant01&mouth=variant01"
+      };
+      return `${base}${variants[mood]}`;
+    } else {
+      // Animated Mode: Humanoid/Adventurer Look (Adventurer)
+      const base = "https://api.dicebear.com/7.x/adventurer/png?seed=HusseinBoy&backgroundColor=b6e3f4&scale=110";
+      const variants = {
+        neutral: "&eyes=variant01&mouth=variant01",
+        thinking: "&eyes=variant13&mouth=variant05",
+        happy: "&eyes=variant06&mouth=variant01",
+        watching: "&eyes=variant01&mouth=variant01"
+      };
+      return `${base}${variants[mood]}`;
+    }
+  };
+
+  const HUSSEIN_AVATAR = getHusseinAvatar(husseinMood, selectedResearchMode);
+  // تأثير عشوائي لتغيير الحالة في القائمة الجانبية
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isChatOpen) {
+        setHusseinMood(prev => prev === 'neutral' ? 'watching' : 'neutral');
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isChatOpen]);
+
+  // عندما تفتح الدردشة، يصبح حسين سعيداً
+  useEffect(() => {
+    if (isChatOpen) {
+      setHusseinMood('happy');
+      const timer = setTimeout(() => setHusseinMood('neutral'), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isChatOpen]);
+
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showMap, setShowMap] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -79,7 +144,7 @@ export default function App() {
       const progress = await getAllUsersProgress();
       setAllUsersProgress(progress as UserProgress[]);
     } catch (error) {
-      console.error("Error fetching admin data:", error);
+      console.error("خطأ في جلب بيانات الإدارة:", error);
     } finally {
       setIsAdminLoading(false);
     }
@@ -126,12 +191,12 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+      setUser(currentUser as FirebaseUser | null);
       if (currentUser) {
         const profile = await getUserProfile(currentUser.uid);
         setUserProfile(profile);
         
-        // If admin, fetch teachers
+        // إذا كان مديراً، جلب بيانات المعلمين
         if (profile?.role === 'admin') {
           const q = query(collection(db, 'allowed_emails'), where('role', '==', 'teacher'));
           const querySnapshot = await getDocs(q);
@@ -170,6 +235,326 @@ export default function App() {
     return <Login onLoginSuccess={() => {}} />;
   }
 
+  if (!selectedResearchMode) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 relative overflow-hidden" dir="rtl">
+        {/* Decorative Background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] bg-brand-200/20 rounded-full blur-[120px] animate-blob"></div>
+          <div className="absolute -bottom-[10%] -right-[10%] w-[60%] h-[60%] bg-indigo-200/20 rounded-full blur-[120px] animate-blob [animation-delay:2s]"></div>
+        </div>
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-6xl w-full z-10 text-center"
+        >
+          {/* Welcome Header */}
+          <motion.div 
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mb-10 flex flex-col items-center"
+          >
+            <div className="w-20 h-20 rounded-3xl bg-white shadow-2xl flex items-center justify-center mb-4 border-2 border-brand-100">
+              <img src={user.photoURL || "https://picsum.photos/seed/student/100/100"} alt="User" className="w-16 h-16 rounded-2xl object-cover" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-600">مرحباً بك يا {displayName}</h2>
+          </motion.div>
+
+          {/* Main Title */}
+          <div className="mb-12 px-4">
+            <motion.h1 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl md:text-4xl lg:text-5xl font-black leading-[1.4] text-slate-900 mb-10 max-w-5xl mx-auto"
+            >
+              <span className="text-brand-600">نمط الوكيل الذكي (متحرك/ تفاعلي)</span>
+              <br />
+              <span className="text-slate-800">بيئة تعلم إلكتروني واثر تفاعله مع نوع التغذية الراجعة (نصية / صوتية)</span>
+              <br />
+              <span className="text-indigo-600">في تنمية بعض مهارات مقرر الحاسب الآلي لدى تلاميذ المرحلة الإعدادية</span>
+            </motion.h1>
+          </div>
+
+          {/* Main Research Groups */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto px-4">
+            {[
+              { id: 'animated-text-1', title: 'المجموعة الأولى', text: 'نمط الوكيل الذكي المتحرك واثر تفاعله مع نوع التغذية الراجعة النصية في تنمية بعض مهارات مقرر- الحاسب الآلي لدى تلاميذ المرحلة الإعدادية', color: 'from-brand-600 to-indigo-600', icon: <Sparkles size={32} /> },
+              { id: 'animated-text-2', title: 'المجموعة الثانية', text: '2-نمط الوكيل الذكي المتحرك واثر تفاعله مع نوع التغذية الراجعة الصوتية في تنمية بعض مهارات', color: 'from-rose-500 to-pink-600', icon: <Cpu size={32} /> },
+              { id: 'interactive-audio-1', title: 'المجموعة الثالثة', text: '3-نمط الوكيل الذكي التفاعلي واثر تفاعله مع نوع التغذية الراجعة الصوتية في تنمية بعض مهارات مقرر الحاسب الآلي لدى تلاميذ المرحلة الإعدادية', color: 'from-emerald-600 to-teal-600', icon: <Video size={32} /> },
+              { id: 'interactive-audio-2', title: 'المجموعة الرابعة', text: '4-نمط الوكيل الذكي التفاعلي واثر تفاعله مع نوع التغذية الراجعة الصوتية في تنمية بعض مهارات مقرر الحاسب الآلي لدى تلاميذ المرحلة الإعدادية', color: 'from-amber-600 to-orange-600', icon: <Globe size={32} /> }
+            ].map((group, idx) => (
+              <motion.button
+                key={group.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + idx * 0.1 }}
+                whileHover={{ scale: 1.02, y: -10 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedResearchMode(group.id)}
+                className={`relative group p-10 rounded-[3rem] bg-gradient-to-br ${group.color} text-white shadow-2xl shadow-brand-500/20 text-right flex flex-col items-start gap-6 overflow-hidden min-h-[280px]`}
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24 blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-inner">
+                    {group.icon}
+                  </div>
+                  <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">{group.title}</span>
+                </div>
+                <p className="text-xl font-black leading-relaxed flex-1">
+                  {group.text}
+                </p>
+                <div className="flex items-center gap-3 text-sm font-black bg-white text-slate-900 px-6 py-3 rounded-2xl shadow-xl group-hover:bg-brand-50 transition-all mt-4">
+                  <span>دخول البيئة التعليمية</span>
+                  <ArrowLeft size={18} />
+                </div>
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Secondary Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-6 mt-16 mb-8">
+            <motion.button
+              whileHover={{ scale: 1.05, y: -5, backgroundColor: '#f8fafc' }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowSupervisorsModal(true)}
+              className="px-10 py-5 bg-white border-2 border-slate-100 text-slate-700 rounded-[2rem] font-black shadow-2xl shadow-slate-500/5 transition-all flex items-center gap-4 group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-colors">
+                <Users size={24} />
+              </div>
+              <span className="text-lg">المشرفين</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05, y: -5, backgroundColor: '#f8fafc' }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowResearcherModal(true)}
+              className="px-10 py-5 bg-white border-2 border-slate-100 text-slate-700 rounded-[2rem] font-black shadow-2xl shadow-slate-500/5 transition-all flex items-center gap-4 group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <User size={24} />
+              </div>
+              <span className="text-lg">الباحث</span>
+            </motion.button>
+          </div>
+
+          {/* Researcher Modal */}
+          <AnimatePresence>
+            {showResearcherModal && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6"
+                onClick={() => setShowResearcherModal(false)}
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                  className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute top-6 right-6 z-10">
+                    <button 
+                      onClick={() => setShowResearcherModal(false)}
+                      className="p-3 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-2xl transition-all group"
+                    >
+                      <X size={20} className="group-hover:rotate-90 transition-transform" />
+                    </button>
+                  </div>
+
+                  <div className="p-10 text-center">
+                    <div className="relative inline-block mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-br from-brand-400 to-indigo-500 rounded-[2.5rem] blur-2xl opacity-20 animate-pulse"></div>
+                      <div className="w-56 h-56 mx-auto rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl relative z-10 group bg-slate-50">
+                        <img 
+                          src="researcher.png" 
+                          alt="الباحث محمد عبد الوهاب" 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target.src.includes('researcher.png')) {
+                              target.src = "https://picsum.photos/seed/researcher_muhammad/600/600";
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-brand-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                      </div>
+                      <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-white rounded-2xl shadow-xl flex items-center justify-center z-20 text-brand-600 border border-slate-50">
+                        <Award size={32} />
+                      </div>
+                    </div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="relative z-10"
+                    >
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-50 text-brand-700 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6">
+                        <Sparkles size={12} />
+                        <span>بيانات الباحث</span>
+                      </div>
+                      
+                      <h3 className="text-3xl md:text-4xl font-black text-slate-900 mb-6 leading-tight tracking-tight">
+                        محمد عبد الوهاب محمد عبيد
+                      </h3>
+                      
+                      <div className="flex items-center justify-center gap-4 mb-8">
+                        <div className="h-px w-16 bg-gradient-to-r from-transparent to-slate-200"></div>
+                        <div className="w-2 h-2 rounded-full bg-brand-400 animate-ping"></div>
+                        <div className="h-px w-16 bg-gradient-to-l from-transparent to-slate-200"></div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <p className="text-xl font-bold text-slate-700 leading-relaxed">
+                          باحث دكتوراه تكنولوجيا التعليم
+                        </p>
+                        <p className="text-lg font-medium text-indigo-600 bg-indigo-50/50 py-3 px-6 rounded-2xl inline-block border border-indigo-100/50">
+                          كلية التربية النوعية جامعة بنها
+                        </p>
+                      </div>
+                    </motion.div>
+
+                    <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col items-center gap-6">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowResearcherModal(false)}
+                        className="px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-base shadow-2xl shadow-slate-300 transition-all flex items-center gap-3"
+                      >
+                        <X size={20} />
+                        <span>إغلاق والعودة للمنصة</span>
+                      </motion.button>
+                      <div className="flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-widest">
+                        <span>المنصة الإبداعية للتعلم الذكي</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Supervisors Modal */}
+          <AnimatePresence>
+            {showSupervisorsModal && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[100] flex items-center justify-center p-4 md:p-6"
+                onClick={() => setShowSupervisorsModal(false)}
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 40, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  exit={{ scale: 0.9, y: 40, opacity: 0 }}
+                  className="bg-white w-full max-w-4xl rounded-[3.5rem] shadow-[0_32px_64px_-15px_rgba(0,0,0,0.2)] overflow-hidden relative border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Close Button */}
+                  <button 
+                    onClick={() => setShowSupervisorsModal(false)}
+                    className="absolute top-8 right-8 p-3 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-2xl transition-all z-20 group"
+                  >
+                    <X size={20} className="group-hover:rotate-90 transition-transform" />
+                  </button>
+
+                  <div className="p-10 md:p-16">
+                    <div className="text-center mb-12">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-50 text-brand-700 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                        <Users size={12} />
+                        <span>لجنة الإشراف العلمي</span>
+                      </div>
+                      <h2 className="text-3xl md:text-4xl font-black text-slate-900">السادة المشرفين على البحث</h2>
+                      <div className="w-20 h-1.5 bg-brand-600 mx-auto mt-6 rounded-full"></div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {[
+                        {
+                          name: 'أ.د/ عبد اللطيف الصفي الجزار',
+                          title: 'استاذ تكنولوجيا التعليم',
+                          org: 'بكلية البنات جامعة عين شمس',
+                          color: 'brand',
+                          img: 'https://picsum.photos/seed/prof1/400/400'
+                        },
+                        {
+                          name: 'أ.د/ نبيل السيد محمد',
+                          title: 'استاذ ورئيس قسم تكنولوجيا التعليم',
+                          org: 'بكلية التربية النوعية جامعة بنها',
+                          color: 'indigo',
+                          img: 'https://picsum.photos/seed/prof2/400/400'
+                        },
+                        {
+                          name: 'أ.م .د. دعاء صبحي عبد الخالق',
+                          title: 'استاذ المساعد تكنولوجيا التعليم',
+                          org: 'بكلية التربية النوعية جامعة بنها',
+                          color: 'emerald',
+                          img: 'https://picsum.photos/seed/prof3/400/400'
+                        }
+                      ].map((prof, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                          viewport={{ once: true }}
+                          transition={{ delay: 0.1 * i, type: "spring", damping: 20 }}
+                          className="bg-slate-50/50 rounded-[2.5rem] p-8 border border-slate-100 hover:bg-white hover:shadow-2xl hover:-translate-y-3 transition-all group text-center"
+                        >
+                          <div className="relative mb-6 inline-block">
+                            <div className={`absolute inset-0 bg-${prof.color}-400/20 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                            <div className="w-32 h-32 rounded-[2rem] overflow-hidden border-4 border-white shadow-lg relative z-10 mx-auto">
+                              <img src={prof.img} alt={prof.name} className="w-full h-full object-cover" />
+                            </div>
+                          </div>
+                          <h3 className={`text-xl font-black text-slate-900 mb-3 leading-tight group-hover:text-${prof.color}-600 transition-colors`}>
+                            {prof.name}
+                          </h3>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-600">{prof.title}</p>
+                            <p className={`text-[11px] font-medium text-${prof.color}-600 bg-${prof.color}-50 px-3 py-1 rounded-full inline-block mt-2`}>
+                              {prof.org}
+                            </p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <div className="mt-16 pt-8 border-t border-slate-50 text-center flex flex-col items-center gap-8">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowSupervisorsModal(false)}
+                        className="px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-base shadow-2xl shadow-slate-300 transition-all flex items-center gap-3"
+                      >
+                        <X size={20} />
+                        <span>إغلاق والعودة للمنصة</span>
+                      </motion.button>
+                      <div className="flex items-center justify-center gap-2 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                        <Sparkles size={14} className="text-brand-400" />
+                        <span>المنصة الإبداعية للتعلم الذكي - 2026</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Footer Info */}
+        <div className="mt-20 text-slate-400 font-bold text-sm">
+          جميع الحقوق محفوظة © 2026 - المشرفين والباحث
+        </div>
+      </div>
+    );
+  }
+
   const currentModule = MODULES.find(m => m.id === selectedModule);
   const moduleLessons = LESSONS.filter(l => l.moduleId === selectedModule);
 
@@ -198,7 +583,7 @@ export default function App() {
             />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-none">كود بريب</h1>
+            <h1 className="text-xl font-black tracking-tight text-slate-900 leading-tight">نمط الوكيل الذكي (متحرك/ تفاعلي)</h1>
             <span className="text-[10px] font-bold text-brand-600 uppercase tracking-[0.2em]">المنصة الإبداعية</span>
           </div>
         </div>
@@ -228,6 +613,11 @@ export default function App() {
           )}
           <NavItem icon={<MapIcon size={20} />} label="خريطة المنهج" active={showMap} onClick={() => setShowMap(!showMap)} />
           <NavItem icon={<Trophy size={20} />} label="إنجازاتي" active={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
+          <NavItem 
+            icon={<RefreshCw size={20} />} 
+            label="تغيير النمط" 
+            onClick={() => setSelectedResearchMode(null)} 
+          />
           <NavItem icon={<Settings size={20} />} label="الإعدادات" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
           
           <div className="pt-4 mt-4 border-t border-slate-100">
@@ -241,39 +631,148 @@ export default function App() {
           </div>
         </nav>
 
-        <div className="mt-auto relative group">
+        <motion.div 
+          className="mt-auto relative group"
+          animate={isChatOpen ? {
+            scale: [1, 1.02, 1],
+            y: [0, -8, 0],
+          } : { 
+            y: [0, -5, 0],
+          }}
+          transition={{
+            duration: isChatOpen ? 2 : 4,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        >
           <div className="absolute inset-0 bg-gradient-to-br from-brand-600 to-indigo-600 rounded-[2rem] blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-          <div className="relative p-4 bg-white border border-brand-100 rounded-[2rem] shadow-sm overflow-hidden">
+          <motion.div 
+            className="relative p-4 bg-white border border-brand-100 rounded-[2rem] shadow-sm overflow-hidden cursor-pointer"
+            onClick={handleHusseinClick}
+            animate={isHusseinMoving ? {
+              x: [0, -15, 15, -8, 8, 0],
+              y: [0, -25, 5, -15, 0],
+              scale: [1, 1.15, 0.95, 1.05, 1],
+              rotate: [0, -4, 4, -2, 2, 0]
+            } : {}}
+            transition={{
+              duration: 2,
+              ease: "easeInOut"
+            }}
+            whileHover={{ 
+              scale: 1.02,
+              rotate: [0, -1, 1, 0],
+              transition: { duration: 0.3, repeat: Infinity }
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
             <div className="flex flex-col items-center gap-4 mb-4">
-              <div className="w-full aspect-square rounded-2xl overflow-hidden border-2 border-brand-500 shadow-md bg-white">
-                <img 
-                  src="/hussein.png" 
+              <motion.div 
+                className="w-full aspect-square rounded-2xl overflow-hidden border-2 border-brand-500 shadow-md bg-white relative"
+                animate={selectedResearchMode?.startsWith('interactive') ? {
+                  x: [0, 1, -1, 0],
+                  opacity: [1, 0.9, 1],
+                  filter: ["hue-rotate(0deg)", "hue-rotate(10deg)", "hue-rotate(0deg)"]
+                } : {
+                  rotate: husseinMood === 'watching' ? [0, -2, 2, 0] : [0, -1, 1, 0],
+                  scale: husseinMood === 'happy' ? [1, 1.05, 1] : [1, 1.01, 1],
+                  y: [0, -4, 0]
+                }}
+                transition={selectedResearchMode?.startsWith('interactive') ? {
+                  duration: 0.2,
+                  repeat: Infinity,
+                  repeatDelay: 3
+                } : {
+                  duration: 5,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
+                <motion.img 
+                  src={HUSSEIN_AVATAR} 
+                  key={husseinMood}
                   alt="حسين الوكيل الذكي" 
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
+                  animate={{
+                    x: husseinMood === 'watching' ? [-5, 5, -5] : [-1, 1, -1],
+                  }}
+                  transition={{
+                    x: {
+                      duration: husseinMood === 'watching' ? 2 : 6,
+                      repeat: Infinity,
+                      ease: "linear"
+                    }
+                  }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Hussein&backgroundColor=b6e3f4&top=shortHair&hairColor=2c1b18&clothing=graphicShirt&clothingColor=2563eb";
+                    (e.target as HTMLImageElement).src = FALLBACK_AVATAR;
                   }}
                 />
-              </div>
+                {/* تأثير الرمش */}
+                <motion.div 
+                  className="absolute inset-0 bg-[#b6e3f4] z-10"
+                  initial={{ scaleY: 0 }}
+                  animate={{ scaleY: [0, 0, 1, 0, 0] }}
+                  transition={{
+                    duration: 0.2,
+                    repeat: Infinity,
+                    repeatDelay: 5,
+                    times: [0, 0.45, 0.5, 0.55, 1]
+                  }}
+                  style={{ originY: 0 }}
+                />
+              </motion.div>
               <div className="text-center">
                 <span className="text-lg font-black text-brand-600 uppercase tracking-wider block">حسين</span>
                 <span className="text-xs font-bold text-slate-400">الوكيل الذكي</span>
               </div>
             </div>
             <p className="text-[11px] text-slate-500 mb-4 text-center leading-relaxed font-medium">أنا رفيقك "حسين" (11 سنة)، خبيرك التقني الذي يساعدك في تعلم البرمجة عبر جهازي اللوحي!</p>
-            <button 
+            <motion.button 
               onClick={() => setIsChatOpen(true)}
-              className="w-full py-3 bg-brand-600 text-white rounded-2xl text-xs font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 active:scale-95"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full py-3 bg-brand-600 text-white rounded-2xl text-xs font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
             >
               تحدث مع حسين
-            </button>
-          </div>
-        </div>
+            </motion.button>
+          </motion.div>
+        </motion.div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
+      <main className={`flex-1 flex flex-col min-w-0 overflow-y-auto relative ${selectedResearchMode?.startsWith('animated') ? 'animated-mode-bg' : ''}`}>
+        {selectedResearchMode?.startsWith('interactive') && (
+          <>
+            <div className="scanline-overlay"></div>
+            <div className="grid-overlay"></div>
+          </>
+        )}
+        {selectedResearchMode?.startsWith('animated') && (
+          <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+            <motion.div 
+              animate={{ y: [0, -15, 0], x: [0, 8, 0], rotate: [0, 5, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-[15%] left-[10%] text-brand-200/20"
+            >
+              <Sparkles size={32} />
+            </motion.div>
+            <motion.div 
+              animate={{ y: [0, 20, 0], x: [0, -10, 0], rotate: [0, -8, 0] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute bottom-[25%] right-[8%] text-indigo-200/20"
+            >
+              <Code size={48} />
+            </motion.div>
+            <motion.div 
+              animate={{ y: [0, -20, 0], x: [0, 15, 0] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+              className="absolute top-[55%] left-[3%] text-brand-100/15"
+            >
+              <Terminal size={28} />
+            </motion.div>
+          </div>
+        )}
         {/* Header */}
         <header className="bg-white/70 backdrop-blur-md border-b border-slate-200/50 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-6 flex-1 max-w-2xl">
@@ -283,6 +782,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-5 mr-6">
+            <button 
+              onClick={() => setShowMap(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-50 text-brand-600 rounded-xl font-black text-sm hover:bg-brand-100 transition-all border border-brand-100"
+            >
+              <MapIcon size={18} />
+              <span>خريطة المنهج</span>
+            </button>
+
             <button className="p-2.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600 rounded-xl transition-all relative group">
               <Bell size={22} />
               <span className="absolute top-2.5 left-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white group-hover:scale-110 transition-transform"></span>
@@ -316,17 +823,61 @@ export default function App() {
                 <section className="relative">
                   <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                     <div className="flex flex-col md:flex-row items-center gap-8">
-                      <div className="w-full md:w-64 aspect-square rounded-[2rem] overflow-hidden border-4 border-brand-200 shadow-2xl bg-white">
-                        <img 
-                          src="/hussein.png" 
+                      <motion.div 
+                        className="w-full md:w-64 aspect-square rounded-[2rem] overflow-hidden border-4 border-brand-200 shadow-2xl bg-white relative cursor-pointer"
+                        onClick={handleHusseinClick}
+                        animate={isHusseinMoving ? {
+                          x: [0, -25, 25, -12, 12, 0],
+                          y: [0, -40, 15, -25, 0],
+                          scale: [1, 1.15, 0.9, 1.05, 1],
+                          rotate: [0, -8, 8, -4, 4, 0]
+                        } : {
+                          rotate: [0, -2, 2, 0],
+                          scale: [1, 1.02, 1],
+                          y: [0, -5, 0]
+                        }}
+                        transition={isHusseinMoving ? {
+                          duration: 2,
+                          ease: "easeInOut"
+                        } : {
+                          duration: 4,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <motion.img 
+                          src={HUSSEIN_AVATAR} 
+                          key={husseinMood}
                           alt="حسين" 
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
+                          animate={{
+                            x: husseinMood === 'watching' ? [-5, 5, -5] : [-1, 1, -1],
+                            skewY: [-1, 1, -1]
+                          }}
+                          transition={{
+                            duration: 6,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Hussein&backgroundColor=b6e3f4&top=shortHair&hairColor=2c1b18&clothing=graphicShirt&clothingColor=2563eb";
+                            (e.target as HTMLImageElement).src = FALLBACK_AVATAR;
                           }}
                         />
-                      </div>
+                        {/* تأثير الرمش */}
+                        <motion.div 
+                          className="absolute inset-0 bg-[#b6e3f4] z-10"
+                          initial={{ scaleY: 0 }}
+                          animate={{ scaleY: [0, 0, 1, 0, 0] }}
+                          transition={{
+                            duration: 0.2,
+                            repeat: Infinity,
+                            repeatDelay: 4,
+                            times: [0, 0.45, 0.5, 0.55, 1]
+                          }}
+                          style={{ originY: 0 }}
+                        />
+                      </motion.div>
                       <div className="flex-1">
                         <div className="bg-white px-8 py-4 rounded-3xl rounded-tr-none shadow-xl border border-brand-100 mb-4 inline-block">
                           <p className="text-lg font-bold text-brand-600">مرحباً بك! أنا حسين، رفيقك في رحلة الإبداع.</p>
@@ -344,9 +895,22 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex gap-4">
-                      <button className="btn-primary flex items-center gap-2 px-8 py-4">
+                      <button 
+                        onClick={() => {
+                          const firstModule = MODULES[0];
+                          if (firstModule) setSelectedModule(firstModule.id);
+                        }}
+                        className="btn-primary flex items-center gap-2 px-8 py-4"
+                      >
                         <Sparkles size={20} />
                         <span>ابدأ التعلم الآن</span>
+                      </button>
+                      <button 
+                        onClick={() => setShowMap(true)}
+                        className="btn-secondary flex items-center gap-2 px-8 py-4"
+                      >
+                        <MapIcon size={20} />
+                        <span>خريطة المنهج</span>
                       </button>
                     </div>
                   </div>
@@ -395,6 +959,7 @@ export default function App() {
                       <ModuleCard 
                         key={module.id} 
                         module={module} 
+                        mode={selectedResearchMode}
                         onClick={() => {
                           setSelectedModule(module.id);
                           if (user) recordProgress(user.uid, 'module', module.id);
@@ -424,7 +989,10 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-brand-600 to-indigo-700 p-10 rounded-[3rem] text-white relative overflow-hidden shadow-2xl shadow-brand-500/20 group">
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gradient-to-br from-brand-600 to-indigo-700 p-10 rounded-[3rem] text-white relative overflow-hidden shadow-2xl shadow-brand-500/20 group"
+                  >
                     <div className="absolute top-[-20%] right-[-20%] w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700"></div>
                     <div className="relative z-10 h-full flex flex-col">
                       <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center mb-8 group-hover:rotate-12 transition-transform">
@@ -432,11 +1000,15 @@ export default function App() {
                       </div>
                       <h3 className="text-3xl font-black mb-4 leading-tight">تحدي الأسبوع: مبرمج المستقبل</h3>
                       <p className="text-brand-50/80 font-medium mb-10 leading-relaxed">استخدم وسم القائمة المرتبة لترتيب خطوات تشغيل الحاسب الآلي باحترافية.</p>
-                      <button className="mt-auto w-full py-5 bg-white text-brand-700 rounded-2xl font-black text-lg hover:bg-brand-50 transition-colors shadow-xl shadow-black/10 active:scale-95">
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="mt-auto w-full py-5 bg-white text-brand-700 rounded-2xl font-black text-lg hover:bg-brand-50 transition-colors shadow-xl shadow-black/10 active:scale-95"
+                      >
                         ابدأ التحدي
-                      </button>
+                      </motion.button>
                     </div>
-                  </div>
+                  </motion.div>
                 </section>
 
                 {/* Curriculum Final Assessment Section */}
@@ -459,7 +1031,7 @@ export default function App() {
                           </div>
                           <div>
                             <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">عدد الأسئلة</p>
-                            <p className="font-black text-slate-900 text-lg">40 سؤال</p>
+                            <p className="font-black text-slate-900 text-lg">{FINAL_QUESTIONS.length} سؤال</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -492,10 +1064,19 @@ export default function App() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-12 pb-20"
               >
-                <div className="flex items-center gap-4 text-sm font-black text-slate-400 uppercase tracking-widest">
-                  <button onClick={() => setSelectedModule(null)} className="hover:text-brand-600 transition-colors">الرئيسية</button>
-                  <ChevronRight size={14} className="rotate-180" />
-                  <span className="text-brand-600">{currentModule?.title}</span>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 text-sm font-black text-slate-400 uppercase tracking-widest">
+                    <button onClick={() => setSelectedModule(null)} className="hover:text-brand-600 transition-colors">الرئيسية</button>
+                    <ChevronRight size={14} className="rotate-180" />
+                    <span className="text-brand-600">{currentModule?.title}</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowMap(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-brand-600 hover:border-brand-200 transition-all text-xs font-black"
+                  >
+                    <MapIcon size={16} />
+                    <span>خريطة المنهج</span>
+                  </button>
                 </div>
 
                 <div className="glass-card p-12 rounded-[3rem] relative overflow-hidden">
@@ -558,13 +1139,22 @@ export default function App() {
                     <ChevronRight size={14} className="rotate-180" />
                     <span className="text-brand-600">{selectedLesson.title}</span>
                   </div>
-                  <button 
-                    onClick={() => setSelectedLesson(null)}
-                    className="flex items-center gap-2 text-slate-500 hover:text-brand-600 font-black text-sm transition-colors group"
-                  >
-                    <ArrowLeft size={18} className="group-hover:translate-x-1 transition-transform" />
-                    <span>العودة للوحدة</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setShowMap(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-brand-600 hover:border-brand-200 transition-all text-xs font-black"
+                    >
+                      <MapIcon size={16} />
+                      <span>خريطة المنهج</span>
+                    </button>
+                    <button 
+                      onClick={() => setSelectedLesson(null)}
+                      className="flex items-center gap-2 text-slate-500 hover:text-brand-600 font-black text-sm transition-colors group"
+                    >
+                      <ArrowLeft size={18} className="group-hover:translate-x-1 transition-transform" />
+                      <span>العودة للوحدة</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -684,17 +1274,50 @@ export default function App() {
                       <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
                       <div className="relative z-10">
                         <div className="flex flex-col gap-6 mb-8">
-                          <div className="w-full aspect-square rounded-3xl overflow-hidden border-4 border-white/30 shadow-2xl bg-white">
-                            <img 
-                              src="/hussein.png" 
+                          <motion.div 
+                            className="w-full aspect-square rounded-3xl overflow-hidden border-4 border-white/30 shadow-2xl bg-white relative"
+                            animate={{
+                              rotate: husseinMood === 'watching' ? [0, -2, 2, 0] : [0, -1, 1, 0],
+                              scale: [1, 1.05, 1]
+                            }}
+                            transition={{
+                              duration: 3,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            }}
+                          >
+                            <motion.img 
+                              src={HUSSEIN_AVATAR} 
+                              key={husseinMood}
                               alt="حسين" 
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
+                              animate={{
+                                x: husseinMood === 'watching' ? [-8, 8, -8] : [-2, 2, -2]
+                              }}
+                              transition={{
+                                duration: 10,
+                                repeat: Infinity,
+                                ease: "linear"
+                              }}
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Hussein&backgroundColor=b6e3f4&top=shortHair&hairColor=2c1b18&clothing=graphicShirt&clothingColor=2563eb";
+                                (e.target as HTMLImageElement).src = FALLBACK_AVATAR;
                               }}
                             />
-                          </div>
+                            {/* تأثير الرمش */}
+                            <motion.div 
+                              className="absolute inset-0 bg-[#b6e3f4] z-10"
+                              initial={{ scaleY: 0 }}
+                              animate={{ scaleY: [0, 0, 1, 0, 0] }}
+                              transition={{
+                                duration: 0.2,
+                                repeat: Infinity,
+                                repeatDelay: 6,
+                                times: [0, 0.45, 0.5, 0.55, 1]
+                              }}
+                              style={{ originY: 0 }}
+                            />
+                          </motion.div>
                           <div>
                             <h4 className="text-3xl font-black">أنا حسين</h4>
                             <p className="text-brand-100 text-lg font-bold uppercase tracking-widest">صديقك الذكي</p>
@@ -715,9 +1338,10 @@ export default function App() {
             ) : activeTab === 'admin' && isAdmin ? (
               <motion.div
                 key="admin"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="space-y-8 pb-20"
               >
                 <div className="flex items-center justify-between mb-8">
@@ -825,9 +1449,10 @@ export default function App() {
             ) : activeTab === 'teachers' ? (
               <motion.div
                 key="teachers"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="max-w-4xl mx-auto space-y-8"
               >
                 <div className="glass-card p-10 rounded-[3rem]">
@@ -854,9 +1479,10 @@ export default function App() {
             ) : activeTab === 'settings' ? (
               <motion.div
                 key="settings"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="max-w-2xl mx-auto space-y-8"
               >
                 <div className="glass-card p-10 rounded-[3rem]">
@@ -911,9 +1537,10 @@ export default function App() {
             ) : activeTab === 'achievements' ? (
               <motion.div
                 key="achievements"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="text-center py-20"
               >
                 <div className="w-24 h-24 bg-yellow-100 text-yellow-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-yellow-500/10 rotate-3">
@@ -931,19 +1558,20 @@ export default function App() {
             ) : activeTab === 'help' ? (
               <motion.div
                 key="help"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="text-center py-20"
               >
                 <div className="w-full max-w-[15cm] aspect-square rounded-[3rem] overflow-hidden mx-auto mb-10 shadow-2xl shadow-brand-500/30 border-8 border-white bg-white">
                   <img 
-                    src="/hussein.png" 
+                    src={HUSSEIN_AVATAR} 
                     alt="حسين" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Hussein&backgroundColor=b6e3f4&top=shortHair&hairColor=2c1b18&clothing=graphicShirt&clothingColor=2563eb";
+                      (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/bottts/png?seed=Hussein";
                     }}
                   />
                 </div>
@@ -965,6 +1593,7 @@ export default function App() {
           isOpen={isChatOpen} 
           onClose={() => setIsChatOpen(false)} 
           initialSubject={selectedLesson?.title || currentModule?.title}
+          researchMode={selectedResearchMode}
         />
 
         {/* Curriculum Map Modal */}
@@ -975,11 +1604,11 @@ export default function App() {
       >
         <div className="relative">
           <img 
-            src="/hussein.png" 
+            src={HUSSEIN_AVATAR} 
             alt="حسين" 
             className="w-12 h-12 rounded-full border-2 border-white/50"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Hussein&backgroundColor=b6e3f4&top=shortHair&hairColor=2c1b18&clothing=graphicShirt&clothingColor=2563eb";
+              (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/bottts/png?seed=Hussein";
             }}
           />
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></span>
@@ -1015,12 +1644,22 @@ export default function App() {
                           {getIcon(module.icon)}
                         </div>
                         <div className="flex-1 pt-2">
-                          <h4 className="font-black text-xl text-slate-900 mb-6">{module.title}</h4>
+                          <h4 
+                            onClick={() => {
+                              setSelectedModule(module.id);
+                              setSelectedLesson(null);
+                              setShowMap(false);
+                            }}
+                            className="font-black text-xl text-slate-900 mb-6 cursor-pointer hover:text-brand-600 transition-colors inline-block"
+                          >
+                            {module.title}
+                          </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {LESSONS.filter(l => l.moduleId === module.id).map(lesson => (
                               <div 
                                 key={lesson.id} 
                                 onClick={() => {
+                                  setSelectedModule(module.id);
                                   setSelectedLesson(lesson);
                                   setShowMap(false);
                                   if (user) recordProgress(user.uid, 'lesson', lesson.id);
@@ -1071,7 +1710,7 @@ export default function App() {
                     onClose={() => setActiveQuiz(null)}
                   />
                 ) : (
-                  // Lesson Quiz
+                  /* اختبار الدرس */
                   (() => {
                     const lesson = LESSONS.find(l => l.id === activeQuiz);
                     if (lesson && lesson.quiz) {
@@ -1100,7 +1739,9 @@ export default function App() {
 
 function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void }) {
   return (
-    <button 
+    <motion.button 
+      whileHover={{ x: -5 }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group ${
         active 
@@ -1118,17 +1759,19 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode, labe
           className="mr-auto w-1.5 h-1.5 rounded-full bg-white"
         />
       )}
-    </button>
+    </motion.button>
   );
 }
 
-function ModuleCard({ module, onClick }: { module: any, onClick: () => void }) {
+function ModuleCard({ module, onClick, mode }: { module: any, onClick: () => void, mode: string | null }) {
+  const isInteractive = mode?.startsWith('interactive');
+  
   return (
     <motion.button
       whileHover={{ y: -10, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="glass-card p-8 rounded-[2.5rem] hover:border-brand-300 hover:shadow-2xl hover:shadow-brand-500/10 transition-all text-right group relative overflow-hidden"
+      className={`glass-card p-8 rounded-[2.5rem] hover:border-brand-300 hover:shadow-2xl hover:shadow-brand-500/10 transition-all text-right group relative overflow-hidden ${isInteractive ? 'interactive-card-hover' : ''}`}
     >
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className={`w-16 h-16 ${module.color} rounded-[1.5rem] flex items-center justify-center text-white mb-8 shadow-2xl group-hover:rotate-6 transition-transform duration-500`}>
@@ -1146,7 +1789,11 @@ function ModuleCard({ module, onClick }: { module: any, onClick: () => void }) {
 
 function RecentLesson({ title, module, progress }: { title: string, module: string, progress: number }) {
   return (
-    <div className="flex items-center gap-5 p-4 hover:bg-white hover:shadow-xl hover:shadow-brand-500/5 rounded-[2rem] transition-all duration-300 cursor-pointer group border border-transparent hover:border-brand-100">
+    <motion.div 
+      whileHover={{ y: -5, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="flex items-center gap-5 p-4 bg-white/50 backdrop-blur-sm hover:bg-white hover:shadow-xl hover:shadow-brand-500/5 rounded-[2rem] transition-all duration-300 cursor-pointer group border border-transparent hover:border-brand-100"
+    >
       <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-brand-50 group-hover:text-brand-600 transition-all duration-300">
         <PlayCircle size={28} />
       </div>
@@ -1165,7 +1812,7 @@ function RecentLesson({ title, module, progress }: { title: string, module: stri
         </div>
         <p className="text-[10px] text-slate-500 mt-2 font-black text-left">{progress}% مكتمل</p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
